@@ -13,8 +13,10 @@ MODULE_VERSION("0.1");
 #define DEVICE_NAME "Memo"
 #define SUCCESS 0
 static int memo_major = 0;
-int result;
+static int result;
 static int Device_Open = 0;	/* Is device open? */
+
+static *char message;
 
 
 
@@ -23,16 +25,49 @@ static int Device_Open = 0;	/* Is device open? */
 /*Return message stored from user*/
 static ssize_t memo_read(struct file *filp, char __user *buf, size_t count, loff_t *pos)
 {
-	
+    ssize_t retval;
 	printk(KERN_DEBUG "Read Method called , Function not supported\n");
-	return -EFAULT;
+
+    if (!message) {                     /*check allocation insuccess*/
+            retval = -ENOMEM;           //
+            goto out;
+    }
+    if (copy_to_user(message, buf, count)) {/*check allocation insuccess*/
+            retval = -EFAULT;
+            goto out;
+    }
+    retval = count;
+
+    out:     
+        return retval;	
+        
+	
 }
 
 /*Store user messafe*/
 static ssize_t memo_write(struct file *filp, const char __user *buf, size_t count, loff_t *pos)
-{
-	printk(KERN_DEBUG "Write method called Function not supported\n");
-	return SUCCESS; /* succeed, to avoid retrial */
+{    
+    ssize_t retval;
+
+    newmessage = vmalloc(count, GFP_KERNEL);/*message memory allocation or new message */
+    if (!newmessage) {                     /*check allocation insuccess*/
+            retval = -ENOMEM;           //
+            goto out;
+    }
+
+    if (copy_from_user(newmessage, buf, count)) {/*check allocation insuccess*/
+            retval = -EFAULT;
+            goto out;
+    }
+
+    vfree(message);
+    message = newmessage;
+    newmessage = NULL;
+    retval = count;
+
+    out:
+        vfree(newmessage);
+        return retval;	
 }
 
 static int memo_open(struct inode *inode, struct file *filp)
@@ -50,7 +85,7 @@ static int memo_release(struct inode *inode, struct file *filp)
 {
 	printk(KERN_DEBUG "Release method called\n");
     Device_Open--;              //release the operation on file 
-    module_put(THIS_MODULE)     //Decrement the use count
+    module_put(THIS_MODULE);     //Decrement the use count
 	return SUCCESS; 
 }
 static struct file_operations memo_fops = { /*attach my operation  */
@@ -84,6 +119,7 @@ void memo_cleanup(void)
 {
 	printk(KERN_DEBUG "Destroy memo= %d",memo_major); 
 	unregister_chrdev(memo_major, DEVICE_NAME); 
+    //vfree (message);							/*Relese memory allocation*/
 }
 
 module_init(memo_init);
