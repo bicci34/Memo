@@ -9,15 +9,16 @@ COMPILE:
 * Compile module  # make
 
 HOW TO LOAD MODULE:
-* Run commnad # sudo insmod Memo.ko
-* Run commnad for retrive the value for Major number   # dmesg  
-* Run commnad and replace the [majorNumber] with your major number # sudo mknod /dev/Memo c [majorNumber] 0 
+* Load module # sudo insmod Memo.ko
+* Run commnad for retrive the Major's number value  # dmesg  
+* Run commnad and replace the [majorNumber] with your major number #  mknod /dev/Memo c [majorNumber] 0 
 
 HOW TO USE IT:
-* for write your message  run command # echo "Your Message" > /dev/Memo
-* for read  your message  run command # cut /dev/Memo
+* For write your message  run command # echo "Your Message" > /dev/Memo
+* For read  your message  run command # cat /dev/Memo
 
 HOW TO UNLOAD MODULE:
+* Create node # rm /dev/Memo
 * Run commnad # sudo rmmod Memo.ko
 
 

@@ -6,49 +6,43 @@
 #include <linux/slab.h>
 #include <linux/gfp.h>
 
-MODULE_LICENSE("GPL");                                     //GLOBAL PUBLIC LICENSE             
+MODULE_LICENSE("GPL");//GLOBAL PUBLIC LICENSE             
 MODULE_AUTHOR("Francesco Bicciato");                                    
-MODULE_DESCRIPTION("Store and read your message.");      
-MODULE_VERSION("0.1");  
+MODULE_DESCRIPTION("Store and read your message");      
+MODULE_VERSION("1.0");  
 
-/* REGION Global variables*/
+/*Global variables*/
 #define DEVICE_NAME "Memo"
 #define SUCCESS 0
 static int memo_major = 0;
-static int Device_Open = 0;	/* Is device open? */
+static int device_Open = 0;	/* Is device open? */
 
 static char* msg = NULL ;
 static size_t msg_size = 0;
 static char empty_msg[] = "No content to read\n";
 static size_t empty_msg_size = sizeof(empty_msg);
 
-/*REGION Method */
+
 
 /*Return message stored from user*/
 static ssize_t memo_read(struct file *filp, char __user *buf, size_t count, loff_t *pos)
 {
-	printk(KERN_DEBUG "Read Method called :\n");
-	printk(KERN_DEBUG "msg = %s\n",msg);
-	if(!msg){//empty string
-		printk(KERN_DEBUG "No messge\n");
-		return simple_read_from_buffer(buf, count, pos, empty_msg, empty_msg_size);	
+	if(!msg){//Check if user has write the message		
+		return simple_read_from_buffer(buf, count, pos, empty_msg, empty_msg_size);	//Return nothing to read
 	}
-	return 	 simple_read_from_buffer(buf, count, pos, msg, msg_size);	
+	return 	 simple_read_from_buffer(buf, count, pos, msg, msg_size);	//Return user message 
 }
 
-/*Store user messafe*/
+/*Store user message*/
 static ssize_t memo_write(struct file *filp, const char __user *buf, size_t count, loff_t *pos)
-{    
-
-	printk(KERN_DEBUG "Write call\n");
-	if(count != msg_size) {
-
+{   
+	if(count != msg_size) {//check if the new message has a different length than the previous one
 		printk(KERN_DEBUG "Need msg reallocation to char =%ld\n",count);
 		if (msg){// clear message when the message contains value 			
 			kfree(msg);
 		}
 		msg = kcalloc(count,sizeof(char), GFP_KERNEL);//allocate memory according to new message 
-		if(!msg){			//check if the allocation was successful
+		if(!msg){//check if the allocation was successful
 			return -ENOMEM;
 		}		
 	}
@@ -60,22 +54,21 @@ static ssize_t memo_write(struct file *filp, const char __user *buf, size_t coun
 static int memo_open(struct inode *inode, struct file *filp)
 {
 	printk(KERN_DEBUG "Open method called\n");
-    if (Device_Open)                //when file is already open return busy
+	if (device_Open){ //when file is already open return busy
 		return -EBUSY;
-
-	Device_Open++;                  //Set device as Busy
-    	try_module_get(THIS_MODULE);    //Increment the use count
+	}
+	device_Open++; //Set device as Busy
+	try_module_get(THIS_MODULE);    //Increment the use count
 	return SUCCESS; 
 }
 
 static int memo_release(struct inode *inode, struct file *filp)
-{
-	printk(KERN_DEBUG "Release method called\n");
-    	Device_Open--;              //release the operation on file 
-    	module_put(THIS_MODULE);     //Decrement the use count
+{	
+	device_Open--;              //Release the operation on file 
+	module_put(THIS_MODULE);     //Decrement the use count
 	return SUCCESS; 
 }
-static struct file_operations memo_fops = { /*attach module operation  */
+static struct file_operations memo_fops = { //Attach module operation  
 	.owner = THIS_MODULE,
 	.read =  memo_read, 
 	.write = memo_write,
@@ -83,20 +76,19 @@ static struct file_operations memo_fops = { /*attach module operation  */
 	.release = memo_release
 };
 
-/*Initialize the device*/
-int memo_init(void)
-{
-int result;
+/*Initialize new device*/
+int memo_init(void){
+	int result;
 	printk(KERN_DEBUG "\nInitialise memo\n");
 	
 	result = register_chrdev(memo_major, DEVICE_NAME, & memo_fops);/* Assign major number, name and opration supported by this device */
 
-	if (result < 0){     /*error during registration*/
+	if (result < 0){     //Error during registration
 		return result;
 	}
 	if (memo_major == 0)  {  
 
-		memo_major = result; /* dynamic major number will be assignment */
+		memo_major = result; /* Dynamic major number will be assignment */
 		printk(KERN_DEBUG "Major N = %d\n",memo_major);
 	} 
 	return SUCCESS;/*registration sucess and */
