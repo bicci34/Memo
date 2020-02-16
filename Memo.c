@@ -4,6 +4,7 @@
 #include <linux/fs.h>     
 #include <linux/uaccess.h>
 #include <linux/slab.h>
+#include <linux/gfp.h>
 
 MODULE_LICENSE("GPL");                                     //GLOBAL PUBLIC LICENSE             
 MODULE_AUTHOR("Francesco Bicciato");                                    
@@ -16,9 +17,10 @@ MODULE_VERSION("0.1");
 static int memo_major = 0;
 static int Device_Open = 0;	/* Is device open? */
 
-//static char msg[] = {'O','K',' ','v','a',' ','l','a',' ','r','e','a','d','!'};
-static char* msg = "va bene\n";
-static int msg_size = sizeof(msg);
+static char* msg = NULL ;
+static size_t msg_size = 0;
+static char empty_msg[] = "No content to read\n";
+static size_t empty_msg_size = sizeof(empty_msg);
 
 /*REGION Method */
 
@@ -27,9 +29,9 @@ static ssize_t memo_read(struct file *filp, char __user *buf, size_t count, loff
 {
 	printk(KERN_DEBUG "Read Method called :\n");
 	printk(KERN_DEBUG "msg = %s\n",msg);
-	if(msg_size == 0){
-		char empty_msg[] ="Sorry nothing to read, write your message before read\n";
-		return simple_read_from_buffer(buf, count, pos, empty_msg, sizeof(empty_msg));	
+	if(!msg){//empty string
+		printk(KERN_DEBUG "No messge\n");
+		return simple_read_from_buffer(buf, count, pos, empty_msg, empty_msg_size);	
 	}
 	return 	 simple_read_from_buffer(buf, count, pos, msg, msg_size);	
 }
@@ -37,17 +39,20 @@ static ssize_t memo_read(struct file *filp, char __user *buf, size_t count, loff
 /*Store user messafe*/
 static ssize_t memo_write(struct file *filp, const char __user *buf, size_t count, loff_t *pos)
 {    
-	printk(KERN_DEBUG "Write call");
-	if(count != msg_size) {
-		kfree(msg);
-	msg = kmalloc(sizeof(char)*count,GFP_KERNEL);
-		printk(KERN_DEBUG "reallocation msg\n");
-	}
-	if(!msg){
-		return -ENOMEM;
-	}
-	msg_size = sizeof(msg);
 
+	printk(KERN_DEBUG "Write call\n");
+	if(count != msg_size) {
+
+		printk(KERN_DEBUG "Need msg reallocation to char =%ld\n",count);
+		if (msg){// clear message when the message contains value 			
+			kfree(msg);
+		}
+		msg = kcalloc(count,sizeof(char), GFP_KERNEL);//allocate memory according to new message 
+		if(!msg){			//check if the allocation was successful
+			return -ENOMEM;
+		}		
+	}
+	msg_size = count;
 	return 	 simple_write_to_buffer(msg, msg_size, pos, buf, count);	
    
 }
@@ -70,7 +75,7 @@ static int memo_release(struct inode *inode, struct file *filp)
     	module_put(THIS_MODULE);     //Decrement the use count
 	return SUCCESS; 
 }
-static struct file_operations memo_fops = { /*attach my operation  */
+static struct file_operations memo_fops = { /*attach module operation  */
 	.owner = THIS_MODULE,
 	.read =  memo_read, 
 	.write = memo_write,
@@ -93,7 +98,7 @@ int result;
 
 		memo_major = result; /* dynamic major number will be assignment */
 		printk(KERN_DEBUG "Major N = %d\n",memo_major);
-	}
+	} 
 	return SUCCESS;/*registration sucess and */
 }
 
@@ -102,7 +107,6 @@ void memo_cleanup(void)
 {
 	printk(KERN_DEBUG "Destroy memo= %d\n",memo_major); 
 	unregister_chrdev(memo_major, DEVICE_NAME); 
-	kfree (msg);							/*Relese memory allocation*/
 }
 
 module_init(memo_init);
