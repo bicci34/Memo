@@ -3,7 +3,7 @@
 #include <linux/kernel.h> 
 #include <linux/fs.h>     
 #include <linux/uaccess.h>
-
+#include <linux/slab.h>
 
 MODULE_LICENSE("GPL");                                     //GLOBAL PUBLIC LICENSE             
 MODULE_AUTHOR("Francesco Bicciato");                                    
@@ -16,67 +16,40 @@ MODULE_VERSION("0.1");
 static int memo_major = 0;
 static int Device_Open = 0;	/* Is device open? */
 
-static char *msg[] = "OK va la read";
-
-
+//static char msg[] = {'O','K',' ','v','a',' ','l','a',' ','r','e','a','d','!'};
+static char* msg = "va bene\n";
+static int msg_size = sizeof(msg);
 
 /*REGION Method */
 
 /*Return message stored from user*/
 static ssize_t memo_read(struct file *filp, char __user *buf, size_t count, loff_t *pos)
 {
-    ssize_t retval;
-	printk(KERN_DEBUG "Read Method called , Function not supported\n");
-
-    if (!msg) {                     /*check allocation insuccess*/
-	printk(KERN_DEBUG "Msg Null pointer\n");	
-            retval = -ENOMEM;           //
-            goto out;
-    }
-    if (copy_to_user(msg, buf, count)) {/*check allocation insuccess*/
-		printk(KERN_DEBUG "copy to user fail\n message:%d\n,buffer%s\n",msg,buf);	
-            retval = -EFAULT;
-            goto out;
-    }
-    retval = count;
-
-    out:     
-        return retval;	
-        
-	
+	printk(KERN_DEBUG "Read Method called :\n");
+	printk(KERN_DEBUG "msg = %s\n",msg);
+	if(msg_size == 0){
+		char empty_msg[] ="Sorry nothing to read, write your message before read\n";
+		return simple_read_from_buffer(buf, count, pos, empty_msg, sizeof(empty_msg));	
+	}
+	return 	 simple_read_from_buffer(buf, count, pos, msg, msg_size);	
 }
 
 /*Store user messafe*/
 static ssize_t memo_write(struct file *filp, const char __user *buf, size_t count, loff_t *pos)
 {    
-    ssize_t retval;
 	printk(KERN_DEBUG "Write call");
-
-	 char*newmsg[] = vmalloc(count * sizeof(char)); //,sizeof(char));/*message memory allocation or new message */
-    if (!newmsg) {                     /*check allocation insuccess*/
-            retval = -ENOMEM;           //
-            goto out;
-    }
-
-    if (copy_from_user(newmsg, buf, count)) {/*check allocation insuccess*/
-            retval = -EFAULT;
-            goto out;
-    }
-	vfree(msg);
-	msg = vmalloc(count * sizeof(char));
-
-	if(!msg){
-		 retval = -ENOMEM;           //
-		goto out;
+	if(count != msg_size) {
+		kfree(msg);
+	msg = kmalloc(sizeof(char)*count,GFP_KERNEL);
+		printk(KERN_DEBUG "reallocation msg\n");
 	}
+	if(!msg){
+		return -ENOMEM;
+	}
+	msg_size = sizeof(msg);
 
-    msg = newmsg;
-    newmsg = NULL;
-    retval = count;
-
-    out:
-        vfree(newmsg);
-        return retval;	
+	return 	 simple_write_to_buffer(msg, msg_size, pos, buf, count);	
+   
 }
 
 static int memo_open(struct inode *inode, struct file *filp)
@@ -86,7 +59,7 @@ static int memo_open(struct inode *inode, struct file *filp)
 		return -EBUSY;
 
 	Device_Open++;                  //Set device as Busy
-    try_module_get(THIS_MODULE);    //Increment the use count
+    	try_module_get(THIS_MODULE);    //Increment the use count
 	return SUCCESS; 
 }
 
@@ -129,7 +102,7 @@ void memo_cleanup(void)
 {
 	printk(KERN_DEBUG "Destroy memo= %d\n",memo_major); 
 	unregister_chrdev(memo_major, DEVICE_NAME); 
-	vfree (msg);							/*Relese memory allocation*/
+	kfree (msg);							/*Relese memory allocation*/
 }
 
 module_init(memo_init);
